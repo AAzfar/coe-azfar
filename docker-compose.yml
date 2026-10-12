@@ -1,10 +1,8 @@
 services:
   database:
     image: postgres:15-alpine
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER:-laravel}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-localdev}
-      POSTGRES_DB: ${POSTGRES_DB:-laravel}
+    env_file:
+      - ./src/backend/.env
     ports:
       - "127.0.0.1:5432:5432"
     volumes:
@@ -14,6 +12,30 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        export POSTGRES_USER="$${DB_USERNAME}"
+        export POSTGRES_PASSWORD="$${DB_PASSWORD}"
+        export POSTGRES_DB="$${DB_DATABASE}"
+        exec /usr/local/bin/docker-entrypoint.sh postgres
+
+  pgweb:
+    image: sosedoff/pgweb:latest
+    ports:
+      - "127.0.0.1:8081:8081"
+    env_file:
+      - ./src/backend/.env
+    environment:
+      DB_HOST: database
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        export DATABASE_URL="postgres://$${DB_USERNAME}:$${DB_PASSWORD}@$${DB_HOST}:$${DB_PORT}/$${DB_DATABASE}?sslmode=disable";
+        exec pgweb --bind 0.0.0.0 --listen 8081
+    depends_on:
+      database:
+        condition: service_healthy
 
   backend:
     build:
@@ -24,16 +46,13 @@ services:
     volumes:
       - ./src/backend:/var/www/html
       - backend_vendor:/var/www/html/vendor
+    env_file:
+      - ./src/backend/.env
     environment:
       APP_ENV: local
       APP_DEBUG: "true"
       APP_URL: http://localhost:8000
-      DB_CONNECTION: pgsql
       DB_HOST: database
-      DB_PORT: 5432
-      DB_DATABASE: ${POSTGRES_DB:-laravel}
-      DB_USERNAME: ${POSTGRES_USER:-laravel}
-      DB_PASSWORD: ${POSTGRES_PASSWORD:-localdev}
       SESSION_DRIVER: file
       CACHE_STORE: file
       QUEUE_CONNECTION: sync
