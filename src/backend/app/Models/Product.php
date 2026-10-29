@@ -8,16 +8,19 @@ class Product extends Model
 {
     protected $fillable = [
         'name',
-        'description',
+        'sku',
+        'category',
         'price',
-        'stock_quantity',
+        'stock',
+        'unit',
+        'image_url',
     ];
 
     protected function casts(): array
     {
         return [
             'price' => 'decimal:2',
-            'stock_quantity' => 'integer',
+            'stock' => 'integer',
         ];
     }
 }

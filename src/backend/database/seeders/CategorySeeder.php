@@ -13,11 +13,21 @@ class CategorySeeder extends Seeder
     public function run(): void
     {
         $categories = [
-            ['name' => 'Electronics', 'slug' => 'electronics'],
-            ['name' => 'Clothing', 'slug' => 'clothing'],
-            ['name' => 'Home & Living', 'slug' => 'home-living'],
-            ['name' => 'Books', 'slug' => 'books'],
-            ['name' => 'Health & Beauty', 'slug' => 'health-beauty'],
+            ['name' => 'Fresh Foods', 'slug' => 'fresh-foods'],
+            ['name' => 'Pantry & Dry Goods', 'slug' => 'pantry-dry-goods'],
+            ['name' => 'Snacks', 'slug' => 'snacks'],
+            ['name' => 'Beverages', 'slug' => 'beverages'],
+            ['name' => 'Frozen Foods', 'slug' => 'frozen-foods'],
+            ['name' => 'Bakery', 'slug' => 'bakery'],
+            ['name' => 'Dairy & Eggs', 'slug' => 'dairy-eggs'],
+            ['name' => 'Meat & Seafood', 'slug' => 'meat-seafood'],
+            ['name' => 'Health & Wellness', 'slug' => 'health-wellness'],
+            ['name' => 'Household Essentials', 'slug' => 'household-essentials'],
+            ['name' => 'Baby & Kids', 'slug' => 'baby-kids'],
+            ['name' => 'Pet Supplies', 'slug' => 'pet-supplies'],
+            ['name' => 'International Foods', 'slug' => 'international-foods'],
+            ['name' => 'Organic & Natural', 'slug' => 'organic-natural'],
+            ['name' => 'Specialty Diets', 'slug' => 'specialty-diets'],
         ];
 
         foreach ($categories as $category) {

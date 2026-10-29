@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Product;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class ProductController extends Controller
 {
@@ -23,9 +24,12 @@ class ProductController extends Controller
     {
         $product = Product::create($request->validate([
             'name' => ['required', 'string', 'max:255'],
-            'description' => ['nullable', 'string'],
+            'sku' => ['required', 'string', 'max:255', 'unique:products,sku'],
+            'category' => ['required', 'string', 'max:255'],
             'price' => ['required', 'numeric', 'min:0'],
-            'stock_quantity' => ['required', 'integer', 'min:0'],
+            'stock' => ['required', 'integer', 'min:0'],
+            'unit' => ['nullable', 'string', 'max:255'],
+            'image_url' => ['nullable', 'url', 'max:2048'],
         ]));
 
         return response()->json($product, 201);
@@ -46,9 +50,12 @@ class ProductController extends Controller
     {
         $product->update($request->validate([
             'name' => ['sometimes', 'required', 'string', 'max:255'],
-            'description' => ['nullable', 'string'],
+            'sku' => ['sometimes', 'required', 'string', 'max:255', Rule::unique('products', 'sku')->ignore($product)],
+            'category' => ['sometimes', 'required', 'string', 'max:255'],
             'price' => ['sometimes', 'required', 'numeric', 'min:0'],
-            'stock_quantity' => ['sometimes', 'required', 'integer', 'min:0'],
+            'stock' => ['sometimes', 'required', 'integer', 'min:0'],
+            'unit' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'image_url' => ['sometimes', 'nullable', 'url', 'max:2048'],
         ]));
 
         return response()->json($product);
