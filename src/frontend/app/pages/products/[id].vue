@@ -1,14 +1,5 @@
 <script setup lang="ts">
-interface Product {
-  id: number
-  name: string
-  sku: string
-  category: string
-  price: string
-  stock: number
-  unit: string | null
-  image_url: string | null
-}
+import type { Item, Product } from '~/types/api'
 
 definePageMeta({
   validate (route: { params: { id?: string | string[] } }) {
@@ -19,9 +10,10 @@ definePageMeta({
 
 const route = useRoute()
 
-const { data: product, status, error } = await useFetch<Product>(
+const { data: response, status, error } = await useFetch<Item<Product>>(
   () => `/api/products/${route.params.id}`,
 )
+const product = computed(() => response.value?.data)
 
 const imageFailed = ref(false)
 
@@ -86,7 +78,7 @@ useHead({ title: 'Grocery item | FreshKeep Market' })
           </div>
 
           <div>
-            <UBadge :label="product.category" variant="subtle" class="mb-3" />
+            <UBadge :label="product.category?.name" variant="subtle" class="mb-3" />
             <h1 class="font-serif text-[clamp(32px,7vw,48px)] font-medium leading-tight">{{ product.name }}</h1>
             <p class="mt-2 font-mono text-xs text-muted">SKU {{ product.sku }}</p>
             <p class="mt-6 mb-5 text-2xl font-bold tabular-nums">

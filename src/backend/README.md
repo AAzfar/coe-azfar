@@ -1,58 +1,126 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Backend — Laravel REST API
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+The FreshKeep Market API: Laravel 13 on PHP 8.4, PostgreSQL 15. It is started by the root `docker-compose.yml`. See the [root README](../../README.md) for setup.
 
-## About Laravel
+Base URL: `http://localhost:8000/api`. The frontend reaches it at `http://localhost:3000/api` through its proxy.
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+## Layout
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+| Path                                   | What's there                                           |
+|----------------------------------------|--------------------------------------------------------|
+| `routes/api.php`                       | All API routes                                         |
+| `app/Http/Controllers/`                | `ProductController`, `CategoryController`, `OrderController`; shared list helpers in `Controller` |
+| `app/Http/Resources/`                  | JSON shape of each model                               |
+| `app/Exceptions/ApiExceptionRenderer.php` | The single error format for every `/api` response   |
+| `app/Models/`                          | `Product`, `Category`, `Order`, `OrderItem`            |
+| `database/migrations/`                 | Schema                                                 |
+| `database/seeders/`                    | Sample categories and groceries (safe to re-run)       |
+| `tests/Feature/`                       | API, error-format, migration and seeder tests          |
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+## Schema
 
-## Learning Laravel
-
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
-
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
-
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
-
-## Agentic Development
-
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
-
-```bash
-composer require laravel/boost --dev
-
-php artisan boost:install
+```
+categories 1 ──< products 1 ──< order_items >── 1 orders
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+| Table         | Key columns | Constraints and indexes |
+|---------------|-------------|-------------------------|
+| `categories`  | `name`, `slug`, `is_active` | `slug` unique |
+| `products`    | `name`, `sku`, `category_id`, `price`, `stock`, `unit`, `image_url` | `sku` unique; FK `category_id → categories` (restrict delete); indexes on `category_id`, `name`, `price`, `stock`, `created_at` |
+| `orders`      | `customer_name`, `customer_email`, `status`, `total` | indexes on `customer_email`, `status`, `created_at` |
+| `order_items` | `order_id`, `product_id`, `quantity`, `unit_price` | FK `order_id → orders` (cascade delete); FK `product_id → products` (restrict delete); unique (`order_id`, `product_id`); index on `product_id` |
 
-## Contributing
+`products.stock` is the inventory quantity. Placing an order decrements it inside a transaction. `order_items.unit_price` keeps the price paid, so later price changes don't rewrite past orders.
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+## Endpoints
 
-## Code of Conduct
+| Method          | Path                    | Notes |
+|-----------------|-------------------------|-------|
+| GET             | `/api/products`         | List (see query parameters below) |
+| POST            | `/api/products`         | Create. Body: `name`, `sku`, `category_id`, `price`, `stock`, optional `unit`, `image_url` |
+| GET             | `/api/products/{id}`    | One product, with its category |
+| PUT / PATCH     | `/api/products/{id}`    | Update any subset of the create fields |
+| DELETE          | `/api/products/{id}`    | `204`; `409` if the product is on an order |
+| GET             | `/api/categories`       | List, with `products_count` |
+| GET             | `/api/categories/{id}`  | One category |
+| GET             | `/api/orders`           | List, with `items_count` |
+| POST            | `/api/orders`           | Body: `customer_name`, `customer_email`, `items: [{product_id, quantity}]`. `422` if any item exceeds stock; nothing is changed in that case |
+| GET             | `/api/orders/{id}`      | One order, with items and products |
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+### List query parameters
 
-## Security Vulnerabilities
+All list endpoints accept:
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+| Param      | Example          | Meaning |
+|------------|------------------|---------|
+| `page`     | `2`              | Page number (default 1) |
+| `per_page` | `20`             | Page size, 1–100 (default 15) |
+| `search`   | `apple`          | Case-insensitive substring match. Products: name, SKU or category name. Categories: name. Orders: customer name or email |
+| `sort`     | `price`, `-price`| Sort field; a leading `-` sorts descending |
 
-## License
+Endpoint-specific filters and sort fields:
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+| Endpoint          | Filters | Sort fields (default) |
+|-------------------|---------|-----------------------|
+| `/api/products`   | `category` (slug), `category_id`, `min_price`, `max_price`, `in_stock` (`1` or `0`) | `name`, `sku`, `price`, `stock`, `created_at` (`name`) |
+| `/api/categories` | `is_active` (`1` or `0`) | `name`, `slug`, `created_at` (`name`) |
+| `/api/orders`     | `status` (`pending`, `paid`, `shipped`, `cancelled`) | `created_at`, `total`, `status` (`-created_at`) |
+
+Unknown sort fields and out-of-range values return a `422`.
+
+Example: `GET /api/products?category=bakery&in_stock=1&sort=-price&per_page=5`
+
+### Response shape
+
+Single records come back as `{ "data": { ... } }`. Lists are paginated:
+
+```json
+{
+  "data": [ { "id": 1, "name": "Fuji Apples", "category": { "id": 1, "name": "Fresh Foods", "slug": "fresh-foods" }, "price": "8.90", "stock": 42 } ],
+  "links": { "first": "...", "last": "...", "prev": null, "next": "..." },
+  "meta": { "current_page": 1, "last_page": 2, "per_page": 15, "total": 18, "from": 1, "to": 15 }
+}
+```
+
+Prices and totals are decimal strings (`"8.90"`) so no precision is lost.
+
+### Errors
+
+Every error from `/api`, whatever its cause, has the same shape and never includes a stack trace:
+
+```json
+{
+  "error": {
+    "status": 422,
+    "code": "validation_failed",
+    "message": "The sku has already been taken.",
+    "details": { "sku": ["The sku has already been taken."] }
+  }
+}
+```
+
+| Status | `code`               | When |
+|--------|----------------------|------|
+| 404    | `not_found`          | Unknown record (`"Product not found."`) or route |
+| 405    | `method_not_allowed` | Wrong HTTP method |
+| 409    | `conflict`           | E.g. deleting a product that has orders |
+| 422    | `validation_failed`  | Invalid body or query; `details` maps each field to its messages |
+| 500    | `server_error`       | Anything unexpected. The real exception goes to `storage/logs/laravel.log` |
+
+`details` is only present on `422` responses.
+
+## Common commands
+
+Run these from the repo root:
+
+```bash
+docker compose exec backend php artisan test --compact     # tests (in-memory SQLite, never the dev DB)
+docker compose exec backend php artisan migrate             # apply new migrations
+docker compose exec backend php artisan db:seed             # add any missing sample data
+docker compose exec backend php artisan route:list --path=api
+docker compose exec backend vendor/bin/pint                 # format PHP
+```
+
+## Configuration
+
+`.env.example` holds working defaults for Docker. The container copies it to `.env` on first start and generates `APP_KEY`. `docker-compose.yml` overrides a few values for local development (`DB_HOST`, session, cache and queue drivers).

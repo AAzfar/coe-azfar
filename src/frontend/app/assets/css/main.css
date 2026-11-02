@@ -1,0 +1,33 @@
+@import "tailwindcss";
+@import "@nuxt/ui";
+
+@theme static {
+  --font-sans: "Trebuchet MS", "Segoe UI", sans-serif;
+  --font-serif: Georgia, "Times New Roman", serif;
+
+  /* FreshKeep green, used as the Nuxt UI primary color */
+  --color-forest-50: #eef6f1;
+  --color-forest-100: #d5e9dc;
+  --color-forest-200: #aed3bd;
+  --color-forest-300: #7fb698;
+  --color-forest-400: #4f9572;
+  --color-forest-500: #2f7a57;
+  --color-forest-600: #256a4c;
+  --color-forest-700: #1f614b;
+  --color-forest-800: #174a39;
+  --color-forest-900: #12392c;
+  --color-forest-950: #0a2119;
+
+  /* Tomato accent from the storefront */
+  --color-tomato-50: #fcf1ee;
+  --color-tomato-100: #f8ddd5;
+  --color-tomato-200: #f0b9a9;
+  --color-tomato-300: #e5927a;
+  --color-tomato-400: #d8735a;
+  --color-tomato-500: #cb6046;
+  --color-tomato-600: #ad4d36;
+  --color-tomato-700: #8d3e2c;
+  --color-tomato-800: #6e3123;
+  --color-tomato-900: #52251a;
+  --color-tomato-950: #2e140e;
+}

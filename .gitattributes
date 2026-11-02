@@ -1,0 +1,4 @@
+# Shell scripts and container config must keep Unix line endings, even when cloned on Windows
+*.sh text eol=lf
+docker-compose.yml text eol=lf
+Dockerfile text eol=lf

@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Models\Category;
 use App\Models\Product;
 use Illuminate\Database\Seeder;
 
@@ -33,12 +34,15 @@ class ProductSeeder extends Seeder
             ['name' => 'Sparkling Water', 'sku' => 'FK-BEV-002', 'category' => 'Beverages', 'price' => 4.50, 'stock' => 50, 'unit' => 'bottle', 'image_url' => 'https://images.unsplash.com/photo-1523362628745-0c100150b504?auto=format&fit=crop&w=900&q=85'],
         ];
 
+        $this->call(CategorySeeder::class);
+        $categoryIds = Category::pluck('id', 'name');
+
         foreach ($products as $product) {
-            Product::updateOrCreate(
+            Product::firstOrCreate(
                 ['sku' => $product['sku']],
                 [
                     'name' => $product['name'],
-                    'category' => $product['category'],
+                    'category_id' => $categoryIds[$product['category']],
                     'price' => $product['price'],
                     'stock' => $product['stock'],
                     'unit' => $product['unit'],

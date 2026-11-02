@@ -1,20 +1,11 @@
 <script setup lang="ts">
 import type { FormError, FormSubmitEvent } from '@nuxt/ui'
-
-interface Product {
-  id: number
-  name: string
-  sku: string
-  category: string
-  price: string
-  stock: number
-  unit: string | null
-}
+import type { ApiError, Category, Item, Paginated, Product } from '~/types/api'
 
 interface ProductForm {
   name: string
   sku: string
-  category: string
+  category_id: number | undefined
   price: number | undefined
   stock: number | undefined
   unit: string
@@ -24,28 +15,15 @@ const form = useTemplateRef('form')
 const state = reactive<ProductForm>({
   name: '',
   sku: '',
-  category: 'Fresh Foods',
+  category_id: undefined,
   price: undefined,
   stock: undefined,
   unit: 'kg',
 })
-const categories = [
-  'Fresh Foods',
-  'Pantry & Dry Goods',
-  'Snacks',
-  'Beverages',
-  'Frozen Foods',
-  'Bakery',
-  'Dairy & Eggs',
-  'Meat & Seafood',
-  'Health & Wellness',
-  'Household Essentials',
-  'Baby & Kids',
-  'Pet Supplies',
-  'International Foods',
-  'Organic & Natural',
-  'Specialty Diets',
-]
+const { data: categories } = await useFetch<Paginated<Category>>('/api/categories', {
+  query: { per_page: 100 },
+})
+const categoryOptions = computed(() => (categories.value?.data ?? []).map(category => ({ label: category.name, value: category.id })))
 const units = ['kg', 'pack', 'bottle', 'piece', 'box']
 const submitError = ref('')
 const isSubmitting = ref(false)
@@ -65,8 +43,8 @@ function validate(values: Partial<ProductForm>): FormError[] {
   else if (sku.length > 255)
     errors.push({ name: 'sku', message: 'SKUs must be 255 characters or fewer.' })
 
-  if (!values.category)
-    errors.push({ name: 'category', message: 'Choose a department.' })
+  if (!values.category_id)
+    errors.push({ name: 'category_id', message: 'Choose a department.' })
 
   if (values.price == null)
     errors.push({ name: 'price', message: 'Enter a price.' })
@@ -89,12 +67,12 @@ async function saveProduct(event: FormSubmitEvent<ProductForm>) {
   isSubmitting.value = true
 
   try {
-    await $fetch<Product>('/api/products', {
+    await $fetch<Item<Product>>('/api/products', {
       method: 'POST',
       body: {
         name: event.data.name.trim(),
         sku: event.data.sku.trim(),
-        category: event.data.category,
+        category_id: event.data.category_id,
         price: event.data.price,
         stock: event.data.stock,
         unit: event.data.unit,
@@ -104,13 +82,8 @@ async function saveProduct(event: FormSubmitEvent<ProductForm>) {
     await navigateTo({ path: '/products', query: { created: '1' } })
   }
   catch (error) {
-    const response = error as {
-      data?: {
-        errors?: Record<string, string[]>
-        message?: string
-      }
-    }
-    const serverErrors = response.data?.errors
+    const apiError = (error as { data?: ApiError }).data?.error
+    const serverErrors = apiError?.details
 
     if (serverErrors) {
       form.value?.setErrors(
@@ -119,7 +92,7 @@ async function saveProduct(event: FormSubmitEvent<ProductForm>) {
       submitError.value = 'Check the highlighted fields and try again.'
     }
     else {
-      submitError.value = response.data?.message ?? 'The grocery item could not be saved. Please try again.'
+      submitError.value = apiError?.message ??'The grocery item could not be saved. Please try again.'
     }
   }
   finally {
@@ -160,8 +133,8 @@ useHead({ title: 'Add grocery item | FreshKeep Market' })
             <UInput v-model="state.sku" :maxlength="255" autocomplete="off" placeholder="e.g. FK-FRT-004" size="lg" class="w-full" />
           </UFormField>
 
-          <UFormField label="Department" name="category" required>
-            <USelect v-model="state.category" :items="categories" size="lg" class="w-full" />
+          <UFormField label="Department" name="category_id" required>
+            <USelect v-model="state.category_id" :items="categoryOptions" placeholder="Choose a department" size="lg" class="w-full" />
           </UFormField>
 
           <UFormField label="Price" name="price" required hint="MYR">

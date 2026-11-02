@@ -1,73 +1,71 @@
 <script setup lang="ts">
 import type { TableColumn } from '@nuxt/ui'
+import type { ApiError, Category, Paginated, Product } from '~/types/api'
 
-interface Product {
-  id: number
-  name: string
-  sku: string
-  category: string
-  price: string
-  stock: number
-  unit: string | null
-}
-
-type SortField = 'name' | 'sku' | 'category' | 'price' | 'stock'
+type SortField = 'name' | 'sku' | 'price' | 'stock'
 
 const UButton = resolveComponent('UButton')
 const UBadge = resolveComponent('UBadge')
 const NuxtLink = resolveComponent('NuxtLink')
 
+const ALL_DEPARTMENTS = 'all'
+
 const route = useRoute()
-const { data: products, status, error } = await useFetch<Product[]>('/api/products', {
-  default: () => [],
-})
 
 const searchTerm = ref(typeof route.query.search === 'string' ? route.query.search : '')
+const appliedSearch = ref(searchTerm.value.trim())
 const sortField = ref<SortField>('name')
 const sortDirection = ref<'asc' | 'desc'>('asc')
 const currentPage = ref(1)
 const pageSize = ref(10)
 const pageSizes = [10, 20, 50]
-const categoryFilter = computed(() => typeof route.query.category === 'string' ? route.query.category : '')
+const categoryFilter = computed(() => typeof route.query.category === 'string' ? route.query.category : ALL_DEPARTMENTS)
 
-const filteredProducts = computed(() => {
-  const query = searchTerm.value.trim().toLocaleLowerCase()
-  const matchingProducts = products.value.filter((product) => {
-    if (categoryFilter.value && product.category !== categoryFilter.value)
-      return false
-
-    return !query || `${product.name} ${product.sku} ${product.category}`.toLocaleLowerCase().includes(query)
-  })
-
-  return [...matchingProducts].sort((left, right) => {
-    const comparison = sortField.value === 'name'
-      ? left.name.localeCompare(right.name)
-      : sortField.value === 'sku'
-        ? left.sku.localeCompare(right.sku)
-        : sortField.value === 'category'
-          ? left.category.localeCompare(right.category)
-          : sortField.value === 'price'
-            ? Number(left.price) - Number(right.price)
-            : left.stock - right.stock
-
-    return sortDirection.value === 'asc' ? comparison : -comparison
-  })
+// Wait for a pause in typing before asking the API to search
+let searchTimer: ReturnType<typeof setTimeout> | undefined
+watch(searchTerm, (value) => {
+  clearTimeout(searchTimer)
+  searchTimer = setTimeout(() => {
+    appliedSearch.value = value.trim()
+  }, 300)
 })
 
-const pageProducts = computed(() => {
-  const offset = (currentPage.value - 1) * pageSize.value
-  return filteredProducts.value.slice(offset, offset + pageSize.value)
-})
-const firstResult = computed(() => filteredProducts.value.length ? (currentPage.value - 1) * pageSize.value + 1 : 0)
-const lastResult = computed(() => Math.min(currentPage.value * pageSize.value, filteredProducts.value.length))
-const createdNotice = computed(() => route.query.created === '1')
-
-watch([searchTerm, categoryFilter, pageSize], () => {
+watch([appliedSearch, categoryFilter, pageSize], () => {
   currentPage.value = 1
 })
 
-function clearCategory() {
-  navigateTo({ query: { ...route.query, category: undefined } }, { replace: true })
+const { data: categories } = await useFetch<Paginated<Category>>('/api/categories', {
+  query: { per_page: 100 },
+})
+const departmentOptions = computed(() => [
+  { label: 'All departments', value: ALL_DEPARTMENTS },
+  ...(categories.value?.data ?? []).map(category => ({ label: category.name, value: category.slug })),
+])
+
+const { data: products, status, error } = await useFetch<Paginated<Product>>('/api/products', {
+  query: computed(() => ({
+    search: appliedSearch.value || undefined,
+    category: categoryFilter.value === ALL_DEPARTMENTS ? undefined : categoryFilter.value,
+    sort: `${sortDirection.value === 'desc' ? '-' : ''}${sortField.value}`,
+    page: currentPage.value,
+    per_page: pageSize.value,
+  })),
+})
+
+const rows = computed(() => products.value?.data ?? [])
+const total = computed(() => products.value?.meta.total ?? 0)
+const hasFilters = computed(() => Boolean(appliedSearch.value) || categoryFilter.value !== ALL_DEPARTMENTS)
+const createdNotice = computed(() => route.query.created === '1')
+const errorMessage = computed(() => (error.value?.data as ApiError | undefined)?.error?.message ?? error.value?.message)
+
+function setCategory(slug: string) {
+  navigateTo({ query: { ...route.query, category: slug === ALL_DEPARTMENTS ? undefined : slug } }, { replace: true })
+}
+
+function clearFilters() {
+  searchTerm.value = ''
+  appliedSearch.value = ''
+  setCategory(ALL_DEPARTMENTS)
 }
 
 function setSort(field: SortField) {
@@ -127,8 +125,9 @@ const columns: TableColumn<Product>[] = [
     cell: ({ row }) => h('span', { class: 'font-mono text-xs text-muted' }, row.original.sku),
   },
   {
-    accessorKey: 'category',
-    header: sortHeader('category', 'Department'),
+    id: 'category',
+    header: 'Department',
+    cell: ({ row }) => row.original.category?.name ?? '—',
   },
   {
     accessorKey: 'price',
@@ -173,31 +172,36 @@ useHead({ title: 'Groceries | FreshKeep Market' })
       />
 
       <section class="mt-5 flex flex-wrap items-center justify-between gap-3" aria-label="Product list controls">
-        <UInput
-          v-model="searchTerm"
-          type="search"
-          icon="i-lucide-search"
-          placeholder="Search by name, SKU, or department"
-          aria-label="Search groceries"
-          size="lg"
-          class="w-full sm:max-w-sm"
-          :ui="{ trailing: 'pe-1' }"
-        >
-          <template v-if="searchTerm" #trailing>
-            <UButton color="neutral" variant="link" size="sm" icon="i-lucide-x" aria-label="Clear search" @click="searchTerm = ''" />
-          </template>
-        </UInput>
+        <div class="flex w-full flex-wrap items-center gap-3 sm:w-auto">
+          <UInput
+            v-model="searchTerm"
+            type="search"
+            icon="i-lucide-search"
+            placeholder="Search by name, SKU, or department"
+            aria-label="Search groceries"
+            size="lg"
+            class="w-full sm:w-80"
+            :ui="{ trailing: 'pe-1' }"
+          >
+            <template v-if="searchTerm" #trailing>
+              <UButton color="neutral" variant="link" size="sm" icon="i-lucide-x" aria-label="Clear search" @click="searchTerm = ''" />
+            </template>
+          </UInput>
+
+          <USelect
+            :model-value="categoryFilter"
+            :items="departmentOptions"
+            aria-label="Filter by department"
+            size="lg"
+            class="w-full sm:w-56"
+            @update:model-value="setCategory"
+          />
+        </div>
 
         <UFormField label="Items" orientation="horizontal" class="items-center gap-2">
           <USelect v-model="pageSize" :items="pageSizes" aria-label="Rows per page" class="w-20" />
         </UFormField>
       </section>
-
-      <div v-if="categoryFilter" class="mt-4 flex flex-wrap items-center gap-2 text-sm text-muted">
-        Department:
-        <UBadge color="primary" variant="subtle" size="lg" :label="categoryFilter" />
-        <UButton variant="link" size="sm" @click="clearCategory">Show all departments</UButton>
-      </div>
 
       <UAlert
         v-if="error"
@@ -206,11 +210,11 @@ useHead({ title: 'Groceries | FreshKeep Market' })
         variant="subtle"
         icon="i-lucide-circle-alert"
         title="Groceries could not be loaded."
-        :description="error.message"
+        :description="errorMessage"
       />
 
       <UEmpty
-        v-else-if="status !== 'pending' && products.length === 0"
+        v-else-if="status !== 'pending' && total === 0 && !hasFilters"
         class="mt-6 bg-default"
         variant="outline"
         icon="i-lucide-shopping-basket"
@@ -220,19 +224,19 @@ useHead({ title: 'Groceries | FreshKeep Market' })
       />
 
       <UEmpty
-        v-else-if="status !== 'pending' && filteredProducts.length === 0"
+        v-else-if="status !== 'pending' && total === 0"
         class="mt-6 bg-default"
         variant="outline"
         icon="i-lucide-search-x"
         title="No matching groceries."
         description="Try a different name, SKU, or department."
-        :actions="[{ label: 'Clear search', color: 'neutral', variant: 'outline', onClick: () => { searchTerm = '' } }]"
+        :actions="[{ label: 'Clear filters', color: 'neutral', variant: 'outline', onClick: clearFilters }]"
       />
 
       <template v-else>
         <UCard class="mt-6" :ui="{ body: 'p-0 sm:p-0' }">
           <UTable
-            :data="pageProducts"
+            :data="rows"
             :columns="columns"
             :loading="status === 'pending'"
             loading-color="primary"
@@ -242,12 +246,12 @@ useHead({ title: 'Groceries | FreshKeep Market' })
 
         <footer class="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-muted">
           <p>
-            Showing <strong class="text-highlighted">{{ firstResult }}–{{ lastResult }}</strong>
-            of <strong class="text-highlighted">{{ filteredProducts.length }}</strong> grocery items
+            Showing <strong class="text-highlighted">{{ products?.meta.from ?? 0 }}–{{ products?.meta.to ?? 0 }}</strong>
+            of <strong class="text-highlighted">{{ total }}</strong> grocery items
           </p>
           <UPagination
             v-model:page="currentPage"
-            :total="filteredProducts.length"
+            :total="total"
             :items-per-page="pageSize"
             aria-label="Product pages"
           />
